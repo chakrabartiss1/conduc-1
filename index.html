@@ -1,0 +1,1977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cardiac Conduction — Peeling Back of Refractoriness & Gap Simulator</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #070b12;
+  --panel: #0f172a;
+  --panel-border: #1e293b;
+  --panel-hover: #1e293b;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --cyan: #38bdf8;
+  --orange: #fb923c;
+  --pink: #f472b6;
+  --green: #4ade80;
+  --red: #ef4444;
+  --yellow: #facc15;
+  --purple: #c084fc;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  font: 14px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Header & Global Toolbar */
+header {
+  padding: 12px 20px;
+  background: #0f172ae6;
+  border-bottom: 1px solid var(--panel-border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(12px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.header-title h1 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-title h1 span.badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--cyan);
+  background: #0284c720;
+  border: 1px solid #0284c750;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+.header-sub {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 2px;
+}
+
+.global-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
+  background: #1e293b;
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn:hover {
+  border-color: var(--cyan);
+  background: #334155;
+  color: #fff;
+}
+
+.btn-primary {
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: #0369a1;
+}
+
+.btn-pvc {
+  background: #991b1b;
+  border-color: #f87171;
+  color: #fff;
+  font-weight: 700;
+}
+
+.btn-pvc:hover {
+  background: #dc2626;
+  border-color: #fca5a5;
+  box-shadow: 0 0 12px #ef444480;
+}
+
+.btn-defib {
+  background: #ca8a04;
+  border-color: #facc15;
+  color: #000;
+  font-weight: 800;
+  animation: pulse-yellow 1.5s infinite;
+}
+
+.btn-defib:hover {
+  background: #eab308;
+  box-shadow: 0 0 14px #facc15a0;
+}
+
+@keyframes pulse-yellow {
+  0% { box-shadow: 0 0 0 0 #facc1580; }
+  70% { box-shadow: 0 0 0 10px #facc1500; }
+  100% { box-shadow: 0 0 0 0 #facc1500; }
+}
+
+.speed-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #020617;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.speed-control input[type=range] {
+  width: 70px;
+  accent-color: var(--cyan);
+}
+
+main {
+  max-width: 1750px;
+  margin: 0 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 4-Panel Grid Dashboard Layout */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(380px, 1.2fr) minmax(360px, 1.2fr) minmax(280px, 0.9fr);
+  gap: 16px;
+}
+
+@media (max-width: 1450px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 850px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 4px 20px #00000050;
+  position: relative;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--panel-border);
+  padding-bottom: 8px;
+}
+
+.panel-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-title span.num {
+  background: #1e293b;
+  color: var(--cyan);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+/* Sliders List */
+.controls-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  max-height: 540px;
+  padding-right: 4px;
+}
+
+.ctrl-item {
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.ctrl-item.gap-box {
+  border-color: #38bdf860;
+  background: #031427;
+}
+
+.ctrl-item.peel-box {
+  border-color: #c084fc60;
+  background: #160a29;
+}
+
+.ctrl-item.pvc-box {
+  border-color: #ef444460;
+  background: #1a080c;
+}
+
+.ctrl-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.ctrl-val {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-weight: 700;
+  color: var(--cyan);
+}
+
+input[type=range] {
+  width: 100%;
+  margin-top: 6px;
+  accent-color: var(--cyan);
+  cursor: pointer;
+}
+
+.step-btns {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.step-btn {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 5px 6px;
+  border-radius: 5px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  color: var(--text);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+
+.step-btn:hover, .step-btn.active {
+  border-color: var(--cyan);
+  background: #0284c730;
+  color: var(--cyan);
+}
+
+/* Pathway Canvas Panel */
+.svg-container {
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 420px;
+}
+
+svg.pathway-svg {
+  width: 100%;
+  height: 100%;
+  max-height: 480px;
+}
+
+.pathway-overlay-info {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  text-align: right;
+  font-size: 0.75rem;
+  font-family: ui-monospace, monospace;
+}
+
+.pathway-overlay-info div.hr {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--green);
+}
+
+/* Action Potential Panel */
+.ap-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--panel-border);
+  padding-bottom: 6px;
+}
+
+.ap-tab {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 5px;
+  background: #1e293b;
+  color: var(--muted);
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.ap-tab.active {
+  background: #0284c725;
+  color: var(--cyan);
+  border-color: #0284c760;
+  font-weight: 700;
+}
+
+.ap-canvas-box {
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  height: 400px;
+  position: relative;
+}
+
+canvas.ap-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Concepts Panel */
+.concepts-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 460px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.concept-card {
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 0.78rem;
+}
+
+.concept-card h4 {
+  margin: 0 0 4px 0;
+  font-size: 0.82rem;
+  color: var(--cyan);
+}
+
+.concept-card ul {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--muted);
+}
+
+.concept-card li {
+  margin-bottom: 3px;
+}
+
+/* Real-Time Live Lead V1 & Lead II Oscilloscope */
+.oscilloscope-panel {
+  background: #020617;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+.oscilloscope-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.oscilloscope-readout {
+  display: flex;
+  gap: 16px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+}
+
+.oscilloscope-readout span.val {
+  color: var(--cyan);
+  font-weight: 700;
+}
+
+canvas.ecg-canvas {
+  width: 100%;
+  height: 200px;
+  display: block;
+  background: #000;
+  border-radius: 8px;
+  border: 1px solid #1e293b;
+}
+
+/* Comparative Matrix Cards Section */
+.matrix-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.matrix-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.matrix-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.matrix-card {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.matrix-card:hover {
+  border-color: var(--cyan);
+  transform: translateY(-2px);
+  background: #1e293b;
+}
+
+.matrix-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.matrix-card-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+canvas.matrix-ecg {
+  width: 100%;
+  height: 85px;
+  background: #020617;
+  border-radius: 6px;
+  border: 1px solid #1e293b;
+  display: block;
+}
+
+.matrix-metrics {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  border-top: 1px solid #1e293b;
+  padding-top: 6px;
+}
+
+/* Preset Buttons Bottom Bar */
+.preset-bar {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preset-bar-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.preset-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.preset-btn {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #020617;
+  border: 1px solid #1e293b;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.preset-btn:hover, .preset-btn.active {
+  background: #0284c725;
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+/* Status Banner Callouts */
+.status-callout {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  background: #031427;
+  border-left: 4px solid var(--cyan);
+  color: var(--text);
+  margin-top: 4px;
+}
+
+.status-callout.blocked {
+  border-left-color: var(--red);
+  background: #2a0b0e;
+  color: #fca5a5;
+}
+
+.status-callout.warning {
+  border-left-color: var(--orange);
+  background: #2a1608;
+  color: #ffedd5;
+}
+
+.status-callout.peel-callout {
+  border-left-color: var(--purple);
+  background: #1c092b;
+  color: #e9d5ff;
+}
+
+.status-callout.vf-alert {
+  border-left-color: #ef4444;
+  background: #450a0a;
+  color: #fecaca;
+  font-weight: 800;
+  animation: flash-red 0.8s infinite alternate;
+}
+
+@keyframes flash-red {
+  0% { background: #450a0a; }
+  100% { background: #7f1d1d; }
+}
+
+.tier-legend {
+  display: flex;
+  gap: 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.tier-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tier-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-title">
+    <h1>Cardiac Conduction <span class="badge">Peeling Back & EP Lab</span></h1>
+    <div class="header-sub">Interactive Electrophysiology Simulator (Peeling Back of Refractoriness, Gap Phenomenon, & Dual Lead V1/II)</div>
+  </div>
+
+  <div class="global-controls">
+    <button id="btnPlay" class="btn btn-primary">▶ Play</button>
+    <button id="btnPause" class="btn">⏸ Pause</button>
+    <button id="btnReset" class="btn">↺ Reset</button>
+    <button id="btnStep" class="btn">➔ Step</button>
+    <button id="btnTriggerPvc" class="btn btn-pvc">⚡ Trigger PVC Beat</button>
+    <button id="btnDefib" class="btn btn-defib">⚡ Defibrillate / Shock (DC 200J)</button>
+    
+    <div class="speed-control">
+      <label for="speedRange">Speed:</label>
+      <input type="range" id="speedRange" min="0.2" max="2.0" step="0.1" value="1.0">
+      <span id="speedVal">1.0x</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- 4-PANEL DASHBOARD GRID -->
+  <div class="dashboard-grid">
+    
+    <!-- PANEL 1: ADJUSTABLE PARAMETERS -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><span class="num">1</span> Adjustable EP Parameters</div>
+      </div>
+
+      <div class="controls-list">
+        <!-- Drive Train Cycle Length -->
+        <div class="ctrl-item">
+          <div class="ctrl-label">Drive Train (S1-S1 TCL) <span id="v_tcl" class="ctrl-val">800 ms</span></div>
+          <input type="range" id="s_tcl" min="300" max="2000" step="10" value="800">
+          <div style="font-size:0.7rem; color:var(--muted); margin-top:2px;">Atrial Rate: <strong id="v_hr" style="color:var(--green)">75 bpm</strong></div>
+        </div>
+
+        <!-- Gap Phenomenon S1-S2 Controller -->
+        <div class="ctrl-item gap-box">
+          <div class="ctrl-label" style="color:#7dd3fc">S1-S2 Extra-Stimulus Interval <span id="v_s1s2" class="ctrl-val" style="color:#38bdf8">270 ms</span></div>
+          <input type="range" id="s_s1s2" min="180" max="420" step="5" value="270">
+          
+          <div class="step-btns">
+            <button class="step-btn" onclick="setS1S2Step(380)">1. S1 Normal Drive</button>
+            <button class="step-btn" onclick="setS1S2Step(340)">2. Zone 1 (Distal Block @340ms)</button>
+            <button class="step-btn active" id="btn_gap_step" onclick="setS1S2Step(270)">3. Gap Zone (Proximal Delay @270ms)</button>
+            <button class="step-btn" onclick="setS1S2Step(190)">4. Zone 2 (Proximal Block @190ms)</button>
+          </div>
+        </div>
+
+        <!-- Peeling Back S2-S3 Controller -->
+        <div class="ctrl-item peel-box">
+          <div class="ctrl-label" style="color:#e9d5ff">S2-S3 Peeling Extra-Stimulus <span id="v_s2s3" class="ctrl-val" style="color:#c084fc">210 ms</span></div>
+          <input type="range" id="s_s2s3" min="140" max="400" step="5" value="210">
+          <div style="font-size:0.68rem; color:#d8b4fe; margin-top:2px;">
+            🔮 S2 penetration abbreviates downstream APD, "peeling back" distal ERP by <strong id="v_peel_amount" style="color:#c084fc">55 ms</strong>. S3 conducts earlier!
+          </div>
+        </div>
+
+        <!-- PVC Coupling Interval -->
+        <div class="ctrl-item pvc-box">
+          <div class="ctrl-label" style="color:#fca5a5">PVC Coupling Interval <span id="v_pvc_coupling" class="ctrl-val" style="color:#fca5a5">220 ms</span></div>
+          <input type="range" id="s_pvc_coupling" min="140" max="600" step="10" value="220">
+          <div style="font-size:0.68rem; color:#f87171; margin-top:2px;">
+            ⚠️ 180-280ms = T-wave Vulnerable Zone (Triggers Polymorphic VT / VF)
+          </div>
+        </div>
+
+        <!-- AV Node Parameters -->
+        <div class="ctrl-item">
+          <div class="ctrl-label">AV Node Conduction Delay <span id="v_av_delay" class="ctrl-val">120 ms</span></div>
+          <input type="range" id="s_av_delay" min="50" max="300" step="5" value="120">
+        </div>
+
+        <div class="ctrl-item">
+          <div class="ctrl-label">AV Node Recovery Time (ERP) <span id="v_av_erp" class="ctrl-val">220 ms</span></div>
+          <input type="range" id="s_av_erp" min="200" max="700" step="10" value="220">
+        </div>
+
+        <!-- Right Bundle Parameters -->
+        <div class="ctrl-item">
+          <div class="ctrl-label">Right Bundle Conduction Delay <span id="v_rb_delay" class="ctrl-val">50 ms</span></div>
+          <input type="range" id="s_rb_delay" min="20" max="200" step="5" value="50">
+        </div>
+
+        <div class="ctrl-item">
+          <div class="ctrl-label">Right Bundle Recovery Time (ERP) <span id="v_rb_erp" class="ctrl-val">330 ms</span></div>
+          <input type="range" id="s_rb_erp" min="150" max="600" step="10" value="330">
+        </div>
+
+        <!-- Left Bundle Parameters -->
+        <div class="ctrl-item">
+          <div class="ctrl-label">Left Bundle Conduction Delay <span id="v_lb_delay" class="ctrl-val">50 ms</span></div>
+          <input type="range" id="s_lb_delay" min="20" max="200" step="5" value="50">
+        </div>
+
+        <div class="ctrl-item">
+          <div class="ctrl-label">Left Bundle Recovery Time (ERP) <span id="v_lb_erp" class="ctrl-val">330 ms</span></div>
+          <input type="range" id="s_lb_erp" min="150" max="600" step="10" value="330">
+        </div>
+      </div>
+    </div>
+
+    <!-- PANEL 2: CONDUCTION PATHWAY ANIMATION -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><span class="num">2</span> 4-Tier Anatomical Pathway Animation</div>
+      </div>
+
+      <div class="svg-container">
+        <div class="pathway-overlay-info">
+          <div class="hr"><span id="liveHr">75</span> <span style="font-size:0.7rem; font-weight:normal">BPM</span></div>
+          <div style="color:var(--muted)">Time: <span id="liveTimer" style="color:var(--cyan)">0 ms</span></div>
+        </div>
+
+        <svg class="pathway-svg" viewBox="0 0 450 480">
+          <path d="M 225 40 C 130 40, 70 120, 70 230 C 70 340, 160 440, 225 460 C 290 440, 380 340, 380 230 C 380 120, 320 40, 225 40 Z" fill="#0b1329" stroke="#1e293b" stroke-width="3" />
+          
+          <!-- Tier 1: Atrial Tissue -->
+          <path id="tier1_atria" d="M 110 90 Q 225 45 340 90 Q 225 180 110 90 Z" fill="#4ade8015" stroke="#4ade8050" stroke-width="2" />
+          
+          <!-- Tier 4: Ventricular Myocardium -->
+          <path id="tier4_ventricle" d="M 120 180 Q 225 210 330 180 Q 340 330 225 430 Q 110 330 120 180 Z" fill="#38bdf808" stroke="#38bdf830" stroke-width="2" />
+          
+          <!-- Interventricular Septum Area -->
+          <rect x="195" y="240" width="60" height="110" rx="10" fill="#38bdf80a" stroke="#38bdf825" stroke-dasharray="3,3" />
+
+          <!-- PATHWAYS -->
+          <path id="path_atria" d="M 160 75 Q 190 100 225 125" fill="none" stroke="#4ade80" stroke-width="4" stroke-linecap="round" />
+          
+          <!-- Tier 2: AV Node -->
+          <circle id="node_av" cx="225" cy="135" r="14" fill="#4ade80" stroke="#fff" stroke-width="2" />
+          <path id="path_his" d="M 225 149 L 225 185" fill="none" stroke="#4ade80" stroke-width="6" />
+          
+          <!-- Tier 3: Infra-Hisian System (Right & Left Bundles) -->
+          <path id="path_rb" d="M 225 185 C 200 230, 150 280, 140 370" fill="none" stroke="#4ade80" stroke-width="4" stroke-linecap="round" />
+          <path id="path_lb" d="M 225 185 C 250 230, 300 280, 310 370" fill="none" stroke="#4ade80" stroke-width="4" stroke-linecap="round" />
+
+          <!-- DYNAMIC REFRACTORY BOUNDARY SHELL (PEELING BACK INDICATOR) -->
+          <path id="path_peel_shell" d="M 190 200 C 170 240, 130 280, 120 370 M 260 200 C 280 240, 320 280, 330 370" fill="none" stroke="#c084fc" stroke-width="8" stroke-linecap="round" opacity="0" stroke-dasharray="6,4" />
+
+          <!-- TRANS-MYOCARDIAL SEPTAL BRIDGES -->
+          <path id="path_trans_l2r" d="M 280 320 C 240 330, 190 330, 155 330" fill="none" stroke="#f472b6" stroke-width="3" stroke-dasharray="4,4" opacity="0" />
+          <path id="path_trans_r2l" d="M 170 320 C 210 330, 260 330, 295 330" fill="none" stroke="#f472b6" stroke-width="3" stroke-dasharray="4,4" opacity="0" />
+
+          <!-- RETROGRADE BUNDLE PENETRATION PATHWAYS -->
+          <path id="path_retro_rb" d="M 140 370 C 145 320, 175 270, 205 220" fill="none" stroke="#f472b6" stroke-width="3" stroke-dasharray="3,3" opacity="0" />
+          <path id="path_retro_lb" d="M 310 370 C 305 320, 275 270, 245 220" fill="none" stroke="#f472b6" stroke-width="3" stroke-dasharray="3,3" opacity="0" />
+
+          <!-- PVC Ectopic Focus Group -->
+          <g id="pvc_focus_group" opacity="0">
+            <circle cx="300" cy="400" r="12" fill="#ef444450" stroke="#f87171" stroke-width="2" />
+            <circle cx="300" cy="400" r="5" fill="#ef4444" />
+          </g>
+
+          <!-- MULTIFOCAL VF RE-ENTRY WAVELETS -->
+          <g id="vf_wavelets_group" opacity="0">
+            <circle id="vf_w1" cx="160" cy="280" r="18" fill="none" stroke="#ef4444" stroke-width="3" stroke-dasharray="4,2" />
+            <circle id="vf_w2" cx="290" cy="310" r="22" fill="none" stroke="#f87171" stroke-width="3" stroke-dasharray="4,2" />
+            <circle id="vf_w3" cx="225" cy="380" r="26" fill="none" stroke="#facc15" stroke-width="3" stroke-dasharray="4,2" />
+          </g>
+
+          <circle id="node_sa" cx="155" cy="70" r="10" fill="#f87171" stroke="#fff" stroke-width="2" />
+          
+          <!-- ANIMATED PULSES -->
+          <circle id="pulse_sa" cx="155" cy="70" r="4" fill="#fff" />
+          <circle id="pulse_av" cx="225" cy="135" r="4" fill="#fff" />
+          <circle id="pulse_rb" cx="225" cy="185" r="4" fill="#fff" />
+          <circle id="pulse_lb" cx="225" cy="185" r="4" fill="#fff" />
+          <circle id="pulse_trans" cx="225" cy="325" r="0" fill="#f472b6" />
+          <circle id="pulse_retro" cx="225" cy="325" r="0" fill="#ff7e7e" />
+          <circle id="pulse_pvc" cx="300" cy="400" r="0" fill="#ef4444" />
+
+          <!-- LABELS -->
+          <text x="110" y="65" fill="#f87171" font-size="11" font-weight="bold">SA node</text>
+          <text x="350" y="100" fill="#4ade80" font-size="11" font-weight="bold">1. Atria (P wave)</text>
+          <text x="245" y="135" fill="#fb923c" font-size="11" font-weight="bold">2. AV node</text>
+          <text x="235" y="170" fill="#facc15" font-size="10">His</text>
+          <text x="70" y="270" fill="#38bdf8" font-size="11" font-weight="bold">3. Infra-Hisian (RB)</text>
+          <text x="315" y="270" fill="#4ade80" font-size="11" font-weight="bold">3. Infra-Hisian (LB)</text>
+          <text id="trans_label" x="225" y="445" fill="#f472b6" font-size="10" text-anchor="middle" font-weight="bold"></text>
+        </svg>
+      </div>
+
+      <div class="tier-legend">
+        <div class="tier-item"><div class="tier-dot" style="background:#4ade80"></div> Green = Recovered / Fast</div>
+        <div class="tier-item"><div class="tier-dot" style="background:#facc15"></div> Yellow = Delay Brake</div>
+        <div class="tier-item"><div class="tier-dot" style="background:#ef4444"></div> Red = Refractory Block</div>
+        <div class="tier-item"><div class="tier-dot" style="background:#c084fc"></div> Purple = Concealed / Peeling Effect</div>
+      </div>
+
+      <div id="statusCallout" class="status-callout">
+        Status: <strong>Normal Synchronous Conduction</strong>
+      </div>
+    </div>
+
+    <!-- PANEL 3: ACTION POTENTIALS & NA+ AVAILABILITY -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><span class="num">3</span> Action Potentials & Dynamic Refractoriness</div>
+      </div>
+
+      <div class="ap-tabs">
+        <button class="ap-tab active" data-aptab="atria">Atrium</button>
+        <button class="ap-tab" data-aptab="av">AV Node</button>
+        <button class="ap-tab" data-aptab="rb">Right Bundle</button>
+        <button class="ap-tab" data-aptab="lb">Left Bundle</button>
+      </div>
+
+      <div class="ap-canvas-box">
+        <canvas id="apCanvas" class="ap-canvas" width="450" height="400"></canvas>
+      </div>
+    </div>
+
+    <!-- PANEL 4: EP CONCEPTS -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><span class="num">4</span> EP Lab Concepts</div>
+      </div>
+
+      <div class="concepts-box">
+        <div class="concept-card" style="border-color:#c084fc80; background:#160a29">
+          <h4 style="color:#e9d5ff">🔮 Peeling Back of Refractoriness</h4>
+          <ul>
+            <li><strong>Mechanism:</strong> A premature impulse ($S_2$) penetrates proximal tissue (e.g., AV node / His bundle) and encounters refractoriness or conducts slowly.</li>
+            <li><strong>Downstream Refractory Shift:</strong> Because $S_2$ alters the local repolarization timing, it repolarizes downstream tissue earlier, effectively <em>"peeling back"</em> its refractory boundary.</li>
+            <li><strong>S3 Conduction Window:</strong> A subsequent premature impulse ($S_3$) can then conduct through downstream tissue earlier than it otherwise could!</li>
+          </ul>
+        </div>
+
+        <div class="concept-card" style="border-color:#38bdf880; background:#031427">
+          <h4 style="color:#7dd3fc">🔍 The Gap Phenomenon Paradox</h4>
+          <ul>
+            <li><strong>The Paradox:</strong> An extra-stimulus at a <em>shorter</em> interval ($S_2 = 270\text{ ms}$) conducts, whereas an impulse at a <em>longer</em> interval ($S_2 = 340\text{ ms}$) blocks!</li>
+            <li><strong>4-Tier Transition:</strong>
+              <br>• At $340\text{ ms}$: Fast AV conduction $\rightarrow$ Strikes distal bundle in <strong>Red (ARP)</strong> $\rightarrow$ <strong>Distal Block</strong>.
+              <br>• At $270\text{ ms}$: Incurs severe AV delay in <strong>Yellow (Proximal Brake)</strong> $\rightarrow$ Distal bundle recovers to <strong>Green/Yellow</strong> $\rightarrow$ <strong>Conducted with Wide QRS</strong>!</li>
+          </ul>
+        </div>
+
+        <div class="concept-card" style="border-color:#ef444480; background:#1a080c">
+          <h4 style="color:#f87171">⚡ R-on-T Vulnerability & VF Engine</h4>
+          <ul>
+            <li><strong>Vulnerable Window:</strong> 180--280 ms during repolarization (T-wave peak-to-end).</li>
+            <li><strong>Re-entry Trigger:</strong> A PVC landing in this window triggers chaotic polymorphic VT / VF across both rhythm strips!</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- REAL-TIME DUAL LEAD ECG OSCILLOSCOPE (LEAD V1 ABOVE LEAD II) -->
+  <div class="oscilloscope-panel">
+    <div class="oscilloscope-header">
+      <div>Real-Time Dynamic Surface ECG Oscilloscope — <strong>Lead V1 (Top Strip) & Lead II (Bottom Strip)</strong></div>
+      <div class="oscilloscope-readout">
+        <div>PR Interval: <span id="livePr" class="val">170 ms</span></div>
+        <div>QRS Duration: <span id="liveQrs" class="val">90 ms</span></div>
+        <div>Pattern: <span id="liveCondState" class="val" style="color:var(--green)">1:1 Normal</span></div>
+      </div>
+    </div>
+    <canvas id="liveEcgCanvas" class="ecg-canvas" width="1600" height="200"></canvas>
+  </div>
+
+  <!-- COMPARATIVE SCENARIO MATRIX -->
+  <div class="matrix-section">
+    <div class="matrix-title">
+      <span>Comparative Scenario Reference Matrix (Lead V1 Top / Lead II Bottom)</span>
+      <span style="font-size:0.75rem; font-weight:normal; color:var(--muted)">Select any scenario to load parameters instantly</span>
+    </div>
+
+    <div class="matrix-grid">
+      <!-- Normal -->
+      <div class="matrix-card" onclick="loadPreset('1')">
+        <div class="matrix-card-header">
+          <div class="matrix-card-title" style="color:var(--green)">1. Normal Sinus</div>
+          <span style="font-size:0.68rem; font-weight:700; color:var(--muted)">1:1 Normal</span>
+        </div>
+        <canvas class="matrix-ecg" id="secg_normal" width="280" height="85"></canvas>
+        <div class="matrix-metrics">
+          <div>PR: 170 ms</div>
+          <div>QRS: 90 ms</div>
+        </div>
+      </div>
+
+      <!-- Gap Phenomenon -->
+      <div class="matrix-card" onclick="loadPreset('11')">
+        <div class="matrix-card-header">
+          <div class="matrix-card-title" style="color:var(--cyan)">2. Gap Phenomenon</div>
+          <span style="font-size:0.68rem; font-weight:700; color:var(--cyan)">S2 Gap Conducts</span>
+        </div>
+        <canvas class="matrix-ecg" id="secg_gap" width="280" height="85"></canvas>
+        <div class="matrix-metrics">
+          <div>S2: 270 ms</div>
+          <div>AV Delay Saves Distal</div>
+        </div>
+      </div>
+
+      <!-- Peeling Back of Refractoriness -->
+      <div class="matrix-card" onclick="loadPreset('12')">
+        <div class="matrix-card-header">
+          <div class="matrix-card-title" style="color:var(--purple)">3. Peeling Back Refractoriness</div>
+          <span style="font-size:0.68rem; font-weight:700; color:var(--purple)">S3 Conducts Early</span>
+        </div>
+        <canvas class="matrix-ecg" id="secg_peel" width="280" height="85"></canvas>
+        <div class="matrix-metrics">
+          <div>S2 Shifts ERP</div>
+          <div>S3 Conducts @210ms</div>
+        </div>
+      </div>
+
+      <!-- RBBB -->
+      <div class="matrix-card" onclick="loadPreset('4')">
+        <div class="matrix-card-header">
+          <div class="matrix-card-title" style="color:var(--pink)">4. Complete RBBB</div>
+          <span style="font-size:0.68rem; font-weight:700; color:var(--pink)">rsR' V1</span>
+        </div>
+        <canvas class="matrix-ecg" id="secg_rbbb" width="280" height="85"></canvas>
+        <div class="matrix-metrics">
+          <div>PR: 170 ms</div>
+          <div>QRS: 155 ms</div>
+        </div>
+      </div>
+
+      <!-- LBBB -->
+      <div class="matrix-card" onclick="loadPreset('5')">
+        <div class="matrix-card-header">
+          <div class="matrix-card-title" style="color:var(--purple)">5. Complete LBBB</div>
+          <span style="font-size:0.68rem; font-weight:700; color:var(--purple)">QS V1</span>
+        </div>
+        <canvas class="matrix-ecg" id="secg_lbbb" width="280" height="85"></canvas>
+        <div class="matrix-metrics">
+          <div>PR: 170 ms</div>
+          <div>QRS: 160 ms</div>
+        </div>
+      </div>
+
+      <!-- Bilateral BBB -->
+      <div class="matrix-card" onclick="loadPreset('9')">
+        <div class="matrix-card-header">
+          <div class="matrix-card-title" style="color:var(--red)">6. Bilateral BBB (CHB)</div>
+          <span style="font-size:0.68rem; font-weight:700; color:var(--red)">P Waves Only</span>
+        </div>
+        <canvas class="matrix-ecg" id="secg_bilateral" width="280" height="85"></canvas>
+        <div class="matrix-metrics">
+          <div>Complete Block</div>
+          <div>No QRS</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRESET SCENARIOS BAR -->
+  <div class="preset-bar">
+    <div class="preset-bar-title">Interactive Clinical Presets</div>
+    <div class="preset-buttons">
+      <button class="preset-btn active" data-preset="1">1. Normal Sinus Rhythm</button>
+      <button class="preset-btn" data-preset="11" style="border-color:#38bdf8; color:#7dd3fc">2. 🔍 Gap Phenomenon Paradox (S1-S2 Protocol)</button>
+      <button class="preset-btn" data-preset="12" style="border-color:#c084fc; color:#e9d5ff">3. 🔮 Peeling Back of Refractoriness (S1-S2-S3 Protocol)</button>
+      <button class="preset-btn" data-preset="10" style="border-color:#ef4444; color:#f87171">4. ⚠️ R-on-T Vulnerability (Polymorphic VT / VF)</button>
+      <button class="preset-btn" data-preset="2">5. AV Node Delay (1st Degree)</button>
+      <button class="preset-btn" data-preset="3">6. AV Node Block (2nd Degree Wenckebach)</button>
+      <button class="preset-btn" data-preset="4_inc">7. Progressive RBBB (Incomplete)</button>
+      <button class="preset-btn" data-preset="4">8. Progressive RBBB (Complete)</button>
+      <button class="preset-btn" data-preset="5_inc">9. Progressive LBBB (Incomplete)</button>
+      <button class="preset-btn" data-preset="5">10. Progressive LBBB (Complete)</button>
+      <button class="preset-btn" data-preset="9">11. Bilateral Bundle Branch Block (CHB)</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// SIMULATOR STATE ENGINE
+const S = {
+  playing: true,
+  speed: 1.0,
+  t: 0,
+  beatCount: 0,
+  
+  // EP Parameters
+  tcl: 800,           // ms (CL / S1-S1)
+  s1s2: 270,          // ms (S1-S2 extra-stimulus)
+  s2s3: 210,          // ms (S2-S3 peeling extra-stimulus)
+  gapActive: false,   // Gap Mode flag
+  peelActive: false,  // Peeling Back Mode flag
+  pvcCoupling: 220,   // ms PVC coupling
+  pvcActive: false,   // PVC triggered flag
+  inVF: false,        // R-on-T VT/VF state
+  pvcResetBonus: 0,   
+  avErp: 220,        // ms
+  avDelay: 120,      // ms
+  rbDelay: 50,       // ms
+  rbErp: 330,        // ms
+  lbDelay: 50,       // ms
+  lbErp: 330,        // ms
+
+  apTab: 'atria',
+  wenckebachStep: 0,
+  pauseRecoveryBonus: 0,
+
+  ecgBufferLeadV1: new Array(800).fill(0),
+  ecgBufferLead2: new Array(800).fill(0)
+};
+
+const COMPLETE_BLOCK_THRESHOLD = 150;
+
+const PRESETS = {
+  1:     { tcl: 800, s1s2: 380, s2s3: 300, gapActive: false, peelActive: false, avErp: 350, avDelay: 120, rbDelay: 50,  rbErp: 300, lbDelay: 50,  lbErp: 300, pvcCoupling: 320 },
+  2:     { tcl: 800, s1s2: 380, s2s3: 300, gapActive: false, peelActive: false, avErp: 450, avDelay: 270, rbDelay: 50,  rbErp: 300, lbDelay: 50,  lbErp: 300, pvcCoupling: 320 },
+  3:     { tcl: 500, s1s2: 380, s2s3: 300, gapActive: false, peelActive: false, avErp: 380, avDelay: 160, rbDelay: 50,  rbErp: 300, lbDelay: 50,  lbErp: 300, pvcCoupling: 320 },
+  '4_inc':{ tcl: 800, s1s2: 380, s2s3: 300, gapActive: false, peelActive: false, avErp: 350, avDelay: 120, rbDelay: 95,  rbErp: 300, lbDelay: 50,  lbErp: 300, pvcCoupling: 320 },
+  4:     { tcl: 800, s1s2: 380, s2s3: 300, gapActive: false, peelActive: false, avErp: 350, avDelay: 120, rbDelay: 160, rbErp: 600, lbDelay: 50,  lbErp: 300, pvcCoupling: 320 },
+  '5_inc':{ tcl: 800, s1s2: 380, s2s3: 300, gapActive: false, peelActive: false, avErp: 350, avDelay: 120, rbDelay: 50,  rbErp: 300, lbDelay: 95,  lbErp: 300, pvcCoupling: 320 },
+  5:     { tcl: 800, s1s2: 380, s2s3: 300, gapActive: false, peelActive: false, avErp: 350, avDelay: 120, rbDelay: 50,  rbErp: 300, lbDelay: 160, lbErp: 600, pvcCoupling: 320 },
+  9:     { tcl: 800, s1s2: 380, s2s3: 300, gapActive: false, peelActive: false, avErp: 350, avDelay: 120, rbDelay: 160, rbErp: 600, lbDelay: 160, lbErp: 600, pvcCoupling: 320 },
+  10:    { tcl: 800, s1s2: 380, s2s3: 300, gapActive: false, peelActive: false, avErp: 350, avDelay: 120, rbDelay: 50,  rbErp: 300, lbDelay: 50,  lbErp: 300, pvcCoupling: 220 },
+  11:    { tcl: 800, s1s2: 270, s2s3: 300, gapActive: true,  peelActive: false, avErp: 220, avDelay: 120, rbDelay: 50,  rbErp: 330, lbDelay: 50,  lbErp: 330, pvcCoupling: 320 },
+  12:    { tcl: 800, s1s2: 270, s2s3: 210, gapActive: true,  peelActive: true,  avErp: 220, avDelay: 120, rbDelay: 50,  rbErp: 330, lbDelay: 50,  lbErp: 330, pvcCoupling: 320 }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  setupControls();
+  setupPresets();
+  setupApTabs();
+  drawStaticScenarioECGs();
+  requestAnimationFrame(animLoop);
+});
+
+function setupControls() {
+  const bindSlider = (id, key, outId, fmtFn) => {
+    const el = document.getElementById(id);
+    const out = document.getElementById(outId);
+    el.addEventListener('input', (e) => {
+      S[key] = parseFloat(e.target.value);
+      if (out) out.textContent = fmtFn ? fmtFn(S[key]) : S[key] + ' ms';
+      if (key === 'tcl') {
+        const hr = Math.round(60000 / S.tcl);
+        document.getElementById('v_hr').textContent = hr + ' bpm';
+        document.getElementById('liveHr').textContent = hr;
+      }
+      if (key === 's2s3' || key === 's1s2') {
+        updatePeelReadout();
+      }
+    });
+  };
+
+  bindSlider('s_tcl', 'tcl', 'v_tcl');
+  bindSlider('s_s1s2', 's1s2', 'v_s1s2');
+  bindSlider('s_s2s3', 's2s3', 'v_s2s3');
+  bindSlider('s_pvc_coupling', 'pvcCoupling', 'v_pvc_coupling');
+  bindSlider('s_av_erp', 'avErp', 'v_av_erp');
+  bindSlider('s_av_delay', 'avDelay', 'v_av_delay');
+  bindSlider('s_rb_delay', 'rbDelay', 'v_rb_delay');
+  bindSlider('s_rb_erp', 'rbErp', 'v_rb_erp');
+  bindSlider('s_lb_delay', 'lbDelay', 'v_lb_delay');
+  bindSlider('s_lb_erp', 'lbErp', 'v_lb_erp');
+
+  document.getElementById('btnTriggerPvc').addEventListener('click', triggerPVC);
+  document.getElementById('btnDefib').addEventListener('click', defibrillateHeart);
+
+  document.getElementById('btnPlay').addEventListener('click', () => S.playing = true);
+  document.getElementById('btnPause').addEventListener('click', () => S.playing = false);
+  document.getElementById('btnReset').addEventListener('click', () => {
+    defibrillateHeart();
+    S.t = 0;
+    S.ecgBufferLeadV1.fill(0);
+    S.ecgBufferLead2.fill(0);
+  });
+  document.getElementById('btnStep').addEventListener('click', () => {
+    S.playing = false;
+    S.t = (S.t + 20) % S.tcl;
+  });
+
+  document.getElementById('speedRange').addEventListener('input', (e) => {
+    S.speed = parseFloat(e.target.value);
+    document.getElementById('speedVal').textContent = S.speed.toFixed(1) + 'x';
+  });
+}
+
+function updatePeelReadout() {
+  // Compute how much the downstream ERP is "peeled back" (shortened) by S2 penetration
+  let peelAmount = 0;
+  if (S.s1s2 < 320) {
+    peelAmount = Math.round((320 - S.s1s2) * 0.9);
+  }
+  const el = document.getElementById('v_peel_amount');
+  if (el) el.textContent = peelAmount + ' ms';
+}
+
+function setS1S2Step(val) {
+  S.s1s2 = val;
+  S.gapActive = true;
+  document.getElementById('s_s1s2').value = val;
+  document.getElementById('v_s1s2').textContent = val + ' ms';
+  
+  document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  updatePeelReadout();
+}
+
+function triggerPVC() {
+  S.pvcActive = true;
+  if (S.pvcCoupling >= 180 && S.pvcCoupling <= 280) {
+    S.inVF = true;
+  }
+}
+
+function defibrillateHeart() {
+  S.inVF = false;
+  S.pvcActive = false;
+  S.pvcResetBonus = 180;
+}
+
+function setupPresets() {
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      loadPreset(btn.dataset.preset);
+    });
+  });
+}
+
+function loadPreset(key) {
+  const p = PRESETS[key];
+  if (!p) return;
+
+  S.tcl = p.tcl;
+  S.s1s2 = p.s1s2;
+  S.s2s3 = p.s2s3;
+  S.gapActive = p.gapActive;
+  S.peelActive = p.peelActive;
+  S.avErp = p.avErp;
+  S.avDelay = p.avDelay;
+  S.rbDelay = p.rbDelay;
+  S.rbErp = p.rbErp;
+  S.lbDelay = p.lbDelay;
+  S.lbErp = p.lbErp;
+  S.pvcCoupling = p.pvcCoupling;
+
+  S.wenckebachStep = 0;
+  S.pauseRecoveryBonus = 0;
+  S.pvcActive = false;
+  S.inVF = false;
+  S.pvcResetBonus = 0;
+
+  if (key == 10) triggerPVC();
+
+  document.getElementById('s_tcl').value = p.tcl;
+  document.getElementById('v_tcl').textContent = p.tcl + ' ms';
+  document.getElementById('s_s1s2').value = p.s1s2;
+  document.getElementById('v_s1s2').textContent = p.s1s2 + ' ms';
+  document.getElementById('s_s2s3').value = p.s2s3;
+  document.getElementById('v_s2s3').textContent = p.s2s3 + ' ms';
+  document.getElementById('s_pvc_coupling').value = p.pvcCoupling;
+  document.getElementById('v_pvc_coupling').textContent = p.pvcCoupling + ' ms';
+  document.getElementById('s_av_erp').value = p.avErp;
+  document.getElementById('v_av_erp').textContent = p.avErp + ' ms';
+  document.getElementById('s_av_delay').value = p.avDelay;
+  document.getElementById('v_av_delay').textContent = p.avDelay + ' ms';
+  document.getElementById('s_rb_delay').value = p.rbDelay;
+  document.getElementById('v_rb_delay').textContent = p.rbDelay + ' ms';
+  document.getElementById('s_rb_erp').value = p.rbErp;
+  document.getElementById('v_rb_erp').textContent = p.rbErp + ' ms';
+  document.getElementById('s_lb_delay').value = p.lbDelay;
+  document.getElementById('v_lb_delay').textContent = p.lbDelay + ' ms';
+  document.getElementById('s_lb_erp').value = p.lbErp;
+  document.getElementById('v_lb_erp').textContent = p.lbErp + ' ms';
+
+  const hr = Math.round(60000 / p.tcl);
+  document.getElementById('v_hr').textContent = hr + ' bpm';
+  document.getElementById('liveHr').textContent = hr;
+  updatePeelReadout();
+}
+
+function setupApTabs() {
+  document.querySelectorAll('.ap-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.ap-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      S.apTab = tab.dataset.aptab;
+      drawActionPotentialGraph();
+    });
+  });
+}
+
+// MAIN ANIMATION LOOP
+let lastTimestamp = 0;
+function animLoop(timestamp) {
+  if (!lastTimestamp) lastTimestamp = timestamp;
+  const dt = (timestamp - lastTimestamp) * S.speed;
+  lastTimestamp = timestamp;
+
+  if (S.playing) {
+    S.t += dt;
+    if (S.t >= S.tcl) {
+      S.t %= S.tcl;
+      S.beatCount++;
+      
+      if (S.pvcActive && !S.inVF) {
+        S.pvcActive = false;
+        S.pvcResetBonus = 180;
+      } else {
+        S.pvcResetBonus = Math.max(0, S.pvcResetBonus - 45);
+      }
+
+      const lastCond = computeConductionPhysics();
+      if (!lastCond.ventriclesConducted) {
+        S.pauseRecoveryBonus = 160;
+      } else {
+        S.pauseRecoveryBonus = Math.max(0, S.pauseRecoveryBonus - 40);
+      }
+      
+      S.wenckebachStep = (S.wenckebachStep + 1) % 4;
+    }
+  }
+
+  document.getElementById('liveTimer').textContent = Math.round(S.t) + ' ms';
+
+  const condState = computeConductionPhysics();
+
+  // Render Visuals
+  updatePathwaySvg(condState);
+  drawActionPotentialGraph();
+  updateLiveEcgOscilloscope(condState);
+
+  requestAnimationFrame(animLoop);
+}
+
+// ELECTROPHYSIOLOGY CONTINUOUS PHYSICS ENGINE (FEATURING PEELING BACK OF REFRACTORINESS)
+function computeConductionPhysics() {
+  if (S.inVF) {
+    const statusEl = document.getElementById('statusCallout');
+    statusEl.className = 'status-callout vf-alert';
+    statusEl.innerHTML = `Status: <strong>⚠️ R-on-T TRIGGERED: POLYMORPHIC VT / VENTRICULAR FIBRILLATION (SHOCK REQUIRED!)</strong>`;
+
+    document.getElementById('livePr').textContent = '— (Chaotic)';
+    document.getElementById('liveQrs').textContent = '— (Fibrillating)';
+    document.getElementById('liveCondState').textContent = '⚠️ VF / Torsades';
+    document.getElementById('liveCondState').style.color = '#ef4444';
+
+    return {
+      avBlocked: true, rbBlocked: true, lbBlocked: true,
+      rbDegree: 1.0, lbDegree: 1.0, ventriclesConducted: false,
+      effectiveAvDelay: S.avDelay, effectiveRbDelay: S.rbDelay, effectiveLbDelay: S.lbDelay,
+      prInterval: null, qrsDuration: 0, isS2Beat: false, isS3Beat: false, isGapConducted: false, isPeelConducted: false,
+      tier1Color: '#ef4444', tier2Color: '#ef4444', tier3Color: '#ef4444', tier4Color: '#ef4444'
+    };
+  }
+
+  const isS2Beat = S.gapActive && (S.t >= S.s1s2 && S.t < S.s1s2 + (S.peelActive ? S.s2s3 : 220));
+  const isS3Beat = S.gapActive && S.peelActive && (S.t >= S.s1s2 + S.s2s3 && S.t <= S.s1s2 + S.s2s3 + 220);
+
+  let isGapConducted = false;
+  let isPeelConducted = false;
+  let isZone1Block = false;
+  let isZone2Block = false;
+
+  let effectiveAvDelay = S.avDelay;
+  let avBlocked = false;
+
+  // 4-TIER COLOR STATE CALCULATIONS
+  let tier1Color = '#4ade80'; // Atrium: Green
+  let tier2Color = '#4ade80'; // AV Node
+  let tier3Color = '#4ade80'; // Infra-Hisian
+  let tier4Color = '#38bdf8'; // Ventricles
+
+  // DYNAMIC PEELING BACK COMPUTATION:
+  // S2 penetration abbreviates downstream APD, shifting the distal ERP curve leftward by peelAmount.
+  let peelAmount = 0;
+  if (S.gapActive && S.s1s2 < 320) {
+    peelAmount = Math.round((320 - S.s1s2) * 0.9); // e.g., S1-S2=270ms -> peelAmount = 45ms
+  }
+
+  if (S.gapActive && isS2Beat) {
+    if (S.s1s2 < S.avErp) {
+      avBlocked = true; isZone2Block = true;
+      tier2Color = '#ef4444'; tier3Color = '#ef4444'; tier4Color = '#ef4444';
+    } else if (S.s1s2 >= S.avErp && S.s1s2 <= 310) {
+      effectiveAvDelay = S.avDelay + (320 - S.s1s2) * 1.8;
+      isGapConducted = true;
+      tier2Color = '#facc15'; tier3Color = '#facc15';
+    } else {
+      effectiveAvDelay = S.avDelay; isZone1Block = true;
+      tier2Color = '#4ade80'; tier3Color = '#ef4444'; tier4Color = '#ef4444';
+    }
+  } else if (S.gapActive && S.peelActive && isS3Beat) {
+    // S3 BEAT EVALUATION WITH PEELED BACK ERP
+    const effectivePeeledErp = Math.max(160, S.rbErp - peelAmount);
+    if (S.s2s3 + effectiveAvDelay >= effectivePeeledErp) {
+      isPeelConducted = true;
+      effectiveAvDelay = S.avDelay + 30; // Mild nodal delay
+      tier2Color = '#c084fc'; // Purple Concealed / Peeling Penetration
+      tier3Color = '#4ade80'; // Downstream conducts due to peeled refractory boundary!
+    } else {
+      avBlocked = true;
+      tier2Color = '#c084fc';
+      tier3Color = '#ef4444';
+    }
+  } else {
+    if (S.tcl < 550 && S.avErp >= 380) {
+      if (S.wenckebachStep === 3) { avBlocked = true; tier2Color = '#ef4444'; }
+      else { effectiveAvDelay = S.avDelay + (S.wenckebachStep * 65); tier2Color = '#facc15'; }
+    } else if (S.tcl < S.avErp) {
+      avBlocked = true; tier2Color = '#ef4444';
+    }
+  }
+
+  const totalBonus = S.pauseRecoveryBonus + S.pvcResetBonus;
+  let effectiveRbDelay = Math.max(30, S.rbDelay - totalBonus * 0.45);
+  let effectiveLbDelay = Math.max(30, S.lbDelay - totalBonus * 0.45);
+
+  let effectiveRbErp = Math.max(150, S.rbErp - totalBonus - (isS3Beat ? peelAmount : 0));
+  let effectiveLbErp = Math.max(150, S.lbErp - totalBonus - (isS3Beat ? peelAmount : 0));
+
+  let rbBlocked = false;
+  let lbBlocked = false;
+
+  if (S.gapActive && isS2Beat) {
+    if (isZone1Block) rbBlocked = true;
+    else if (isGapConducted) rbBlocked = false;
+  } else if (S.gapActive && S.peelActive && isS3Beat) {
+    if (!isPeelConducted) rbBlocked = true;
+  } else {
+    if (S.tcl < effectiveRbErp || effectiveRbDelay >= COMPLETE_BLOCK_THRESHOLD) rbBlocked = true;
+    if (S.tcl < effectiveLbErp || effectiveLbDelay >= COMPLETE_BLOCK_THRESHOLD) lbBlocked = true;
+  }
+
+  const ventriclesConducted = (!avBlocked || S.pvcActive) && (!rbBlocked || !lbBlocked || S.pvcActive);
+
+  let calculatedQrsDuration = 80;
+  let rbDegree = 0;
+  let lbDegree = 0;
+
+  if (S.pvcActive) {
+    calculatedQrsDuration = 160;
+  } else if (ventriclesConducted) {
+    if (rbBlocked) {
+      rbDegree = 1.0;
+      calculatedQrsDuration = 135 + Math.min(30, (effectiveRbDelay - 120) * 0.4);
+    } else {
+      rbDegree = Math.max(0, Math.min(1.0, (effectiveRbDelay - 50) / 70));
+    }
+
+    if (lbBlocked) {
+      lbDegree = 1.0;
+      calculatedQrsDuration = 140 + Math.min(30, (effectiveLbDelay - 120) * 0.4);
+    } else {
+      lbDegree = Math.max(0, Math.min(1.0, (effectiveLbDelay - 50) / 70));
+    }
+
+    if (!rbBlocked && !lbBlocked) {
+      const maxDegree = Math.max(rbDegree, lbDegree);
+      calculatedQrsDuration = Math.round(85 + maxDegree * 35);
+    } else {
+      calculatedQrsDuration = Math.round(calculatedQrsDuration);
+    }
+  }
+
+  let prInterval = avBlocked ? null : (60 + Math.round(effectiveAvDelay));
+  let condLabel = "Normal Sinus Rhythm";
+  let statusText = "Normal Synchronous Conduction";
+  let isWarning = false;
+  let isBlocked = false;
+  let isPeelCallout = false;
+
+  if (S.gapActive && S.peelActive && isS3Beat) {
+    isPeelCallout = true;
+    if (isPeelConducted) {
+      condLabel = `S3 Conducted (Peeled ERP = -${peelAmount}ms)`;
+      statusText = `PEELING BACK SUCCESSFUL! S2 penetration abbreviated distal ERP by ${peelAmount} ms. S3 conducts at S2-S3 = ${S.s2s3} ms!`;
+    } else {
+      condLabel = `S3 Blocked (Exceeds Peeled Window)`;
+      statusText = `S3 Blocked: S2-S3 interval (${S.s2s3} ms) still falls inside the remaining refractory period.`;
+      isBlocked = true;
+    }
+  } else if (S.gapActive && isS2Beat) {
+    if (isZone1Block) {
+      condLabel = `Zone 1 Block (S2 = ${S.s1s2}ms Distal Block)`;
+      statusText = `Zone 1: S2 = ${S.s1s2} ms BLOCKS in Distal Bundle (Rapid AV conduction strikes distal refractoriness)!`;
+      isWarning = true;
+    } else if (isGapConducted) {
+      condLabel = `Gap Phenomenon Conducted (S2 = ${S.s1s2}ms)`;
+      statusText = `GAP PARADOX CONDUCTED! S2 = ${S.s1s2} ms incurs Proximal AV Delay (Yellow), allowing Distal Recovery!`;
+    } else if (isZone2Block) {
+      condLabel = `Zone 2 Block (S2 = ${S.s1s2}ms Proximal Block)`;
+      statusText = `Zone 2: S2 = ${S.s1s2} ms BLOCKS Proximally in AV Node (Encounters AVN ERP)!`;
+      isBlocked = true;
+    }
+  } else if (S.pvcActive) {
+    condLabel = "⚡ Triggered PVC Beat";
+    statusText = "Premature Ventricular Complex — Myocardial Origin & Retrograde Bundle Penetration";
+    isWarning = true;
+  } else if (avBlocked) {
+    condLabel = "AV Block (Non-conducted P)";
+    statusText = "AV Node Block — Isolated P Wave (No QRS)";
+    isBlocked = true;
+  } else if (rbBlocked && lbBlocked) {
+    condLabel = "Bilateral BBB (P Waves Only)";
+    statusText = "Bilateral Bundle Branch Block — Complete Heart Block (No QRS / P Waves Only)";
+    isBlocked = true;
+  } else if (effectiveAvDelay > 180) {
+    condLabel = `1st Degree AV Block (PR = ${prInterval}ms)`;
+    statusText = `1st Degree AV Block (PR = ${prInterval} ms) — Slowed AV Nodal Conduction`;
+    isWarning = true;
+  }
+
+  if (ventriclesConducted && !S.pvcActive && !S.gapActive) {
+    if (rbBlocked) {
+      condLabel = `Complete RBBB (${calculatedQrsDuration}ms)`;
+      statusText = `Complete RBBB — Trans-Myocardial Septal Conduction & Retrograde RB Penetration (${calculatedQrsDuration} ms)`;
+      isWarning = true;
+    } else if (lbBlocked) {
+      condLabel = `Complete LBBB (${calculatedQrsDuration}ms)`;
+      statusText = `Complete LBBB — Trans-Myocardial Septal Conduction & Retrograde LB Penetration (${calculatedQrsDuration} ms)`;
+      isWarning = true;
+    }
+  }
+
+  const statusEl = document.getElementById('statusCallout');
+  statusEl.className = 'status-callout' + (isPeelCallout ? ' peel-callout' : (isBlocked ? ' blocked' : (isWarning ? ' warning' : '')));
+  statusEl.innerHTML = `Status: <strong>${statusText}</strong>`;
+
+  document.getElementById('livePr').textContent = prInterval ? prInterval + ' ms' : '— (Blocked)';
+  document.getElementById('liveQrs').textContent = ventriclesConducted ? calculatedQrsDuration + ' ms' : '— (No QRS)';
+  document.getElementById('liveCondState').textContent = condLabel;
+  document.getElementById('liveCondState').style.color = isPeelConducted ? '#c084fc' : (isGapConducted ? '#38bdf8' : (isBlocked ? 'var(--red)' : (isWarning ? 'var(--orange)' : 'var(--green)')));
+
+  return {
+    avBlocked, rbBlocked, lbBlocked, rbDegree, lbDegree, ventriclesConducted,
+    effectiveAvDelay, effectiveRbDelay, effectiveLbDelay, prInterval,
+    qrsDuration: calculatedQrsDuration, isS2Beat, isS3Beat, isGapConducted, isPeelConducted, peelAmount,
+    tier1Color, tier2Color, tier3Color, tier4Color
+  };
+}
+
+// UPDATE SVG ANATOMICAL PATHWAY ANIMATION WITH 4-TIER COLORS & PEELING SHELL
+function updatePathwaySvg(cond) {
+  const pSA = document.getElementById('pulse_sa');
+  const pAV = document.getElementById('pulse_av');
+  const pRB = document.getElementById('pulse_rb');
+  const pLB = document.getElementById('pulse_lb');
+  const pTrans = document.getElementById('pulse_trans');
+  const pRetro = document.getElementById('pulse_retro');
+  const pPVC = document.getElementById('pulse_pvc');
+  const pvcGroup = document.getElementById('pvc_focus_group');
+  const vfGroup = document.getElementById('vf_wavelets_group');
+
+  const nodeAV = document.getElementById('node_av');
+  const pathHis = document.getElementById('path_his');
+  const pathRB = document.getElementById('path_rb');
+  const pathLB = document.getElementById('path_lb');
+  const peelShell = document.getElementById('path_peel_shell');
+
+  const pathTransL2R = document.getElementById('path_trans_l2r');
+  const pathTransR2L = document.getElementById('path_trans_r2l');
+  const pathRetroRB = document.getElementById('path_retro_rb');
+  const pathRetroLB = document.getElementById('path_retro_lb');
+  const transLabel = document.getElementById('trans_label');
+
+  if (S.inVF) {
+    vfGroup.setAttribute('opacity', '1');
+    pvcGroup.setAttribute('opacity', '1');
+    transLabel.textContent = '⚠️ Chaotic Re-entry Wavelets — Polymorphic VT / VF Active';
+
+    const r1 = 12 + Math.sin(Date.now() * 0.02) * 10;
+    const r2 = 14 + Math.cos(Date.now() * 0.025) * 12;
+    const r3 = 18 + Math.sin(Date.now() * 0.018) * 14;
+
+    document.getElementById('vf_w1').setAttribute('r', r1);
+    document.getElementById('vf_w2').setAttribute('r', r2);
+    document.getElementById('vf_w3').setAttribute('r', r3);
+    return;
+  } else {
+    vfGroup.setAttribute('opacity', '0');
+  }
+
+  // Set Tier Colors
+  nodeAV.setAttribute('fill', cond.tier2Color);
+  pathHis.setAttribute('stroke', cond.tier2Color);
+  pathRB.setAttribute('stroke', cond.rbBlocked ? '#ef4444' : cond.tier3Color);
+  pathLB.setAttribute('stroke', cond.lbBlocked ? '#ef4444' : cond.tier3Color);
+
+  // Render Peeling Back Refractory Boundary Shell
+  if (S.gapActive && cond.peelAmount > 0) {
+    peelShell.setAttribute('opacity', '0.8');
+    peelShell.setAttribute('stroke', cond.isS3Beat ? '#c084fc' : '#38bdf8');
+  } else {
+    peelShell.setAttribute('opacity', '0');
+  }
+
+  const tAtria = 60;
+  const avDur = Math.max(40, cond.effectiveAvDelay);
+  const tAvEnd = tAtria + avDur;
+
+  pathTransL2R.setAttribute('opacity', '0');
+  pathTransR2L.setAttribute('opacity', '0');
+  pathRetroRB.setAttribute('opacity', '0');
+  pathRetroLB.setAttribute('opacity', '0');
+  pvcGroup.setAttribute('opacity', '0');
+  transLabel.textContent = '';
+  pTrans.setAttribute('r', '0');
+  pRetro.setAttribute('r', '0');
+  pPVC.setAttribute('r', '0');
+
+  // Tier 1: Atria Wavefront
+  if (S.t <= tAtria) {
+    const progress = S.t / tAtria;
+    pSA.setAttribute('cx', 155 + progress * 70);
+    pSA.setAttribute('cy', 70 + progress * 55);
+    pSA.setAttribute('r', '5');
+  } else {
+    pSA.setAttribute('r', '2');
+  }
+
+  // Tier 2: AV Node Wavefront
+  if (S.t > tAtria && S.t <= tAvEnd) {
+    if (cond.avBlocked && !S.pvcActive) {
+      pAV.setAttribute('r', '0');
+    } else {
+      const prg = (S.t - tAtria) / avDur;
+      pAV.setAttribute('cx', 225);
+      pAV.setAttribute('cy', 125 + prg * 24);
+      pAV.setAttribute('r', '6');
+    }
+  } else {
+    pAV.setAttribute('r', '0');
+  }
+
+  // PVC BEAT ANIMATION
+  if (S.pvcActive) {
+    pvcGroup.setAttribute('opacity', '1');
+    transLabel.textContent = '⚡ PVC Ectopic Focus → Retrograde Bundle Penetration';
+
+    const pvcStart = S.pvcCoupling;
+    const pvcDur = 140;
+
+    if (S.t >= pvcStart && S.t <= pvcStart + pvcDur) {
+      const prg = (S.t - pvcStart) / pvcDur;
+      pPVC.setAttribute('cx', 300 - prg * 150);
+      pPVC.setAttribute('cy', 400 - prg * 180);
+      pPVC.setAttribute('r', '7');
+    }
+    return;
+  }
+
+  // Tier 3 & 4: Infra-Hisian Bundles
+  if (!cond.avBlocked) {
+    if (cond.rbBlocked && !cond.lbBlocked) {
+      transLabel.textContent = 'Trans-Myocardial Septal Conduction → Retrograde RB Penetration';
+      pathTransL2R.setAttribute('opacity', '1');
+      pathRetroRB.setAttribute('opacity', '1');
+
+      const lbDur = Math.max(50, cond.effectiveLbDelay);
+      const transDur = 60;
+      const retroDur = 70;
+
+      const tLbEnd = tAvEnd + lbDur;
+      const tTransEnd = tLbEnd + transDur;
+      const tRetroEnd = tTransEnd + retroDur;
+
+      if (S.t > tAvEnd && S.t <= tLbEnd) {
+        const prg = (S.t - tAvEnd) / lbDur;
+        pLB.setAttribute('cx', 225 + prg * 85);
+        pLB.setAttribute('cy', 185 + prg * 185);
+        pLB.setAttribute('r', '5');
+      } else { pLB.setAttribute('r', '0'); }
+
+      if (S.t > tLbEnd && S.t <= tTransEnd) {
+        const prg = (S.t - tLbEnd) / transDur;
+        pTrans.setAttribute('cx', 280 - prg * 125);
+        pTrans.setAttribute('cy', 320 + prg * 10);
+        pTrans.setAttribute('r', '5');
+      }
+
+      if (S.t > tTransEnd && S.t <= tRetroEnd) {
+        const prg = (S.t - tTransEnd) / retroDur;
+        pRetro.setAttribute('cx', 140 + prg * 65);
+        pRetro.setAttribute('cy', 370 - prg * 150);
+        pRetro.setAttribute('r', '5');
+      }
+
+    } else if (cond.lbBlocked && !cond.rbBlocked) {
+      transLabel.textContent = 'Trans-Myocardial Septal Conduction → Retrograde LB Penetration';
+      pathTransR2L.setAttribute('opacity', '1');
+      pathRetroLB.setAttribute('opacity', '1');
+
+      const rbDur = Math.max(50, cond.effectiveRbDelay);
+      const transDur = 60;
+      const retroDur = 70;
+
+      const tRbEnd = tAvEnd + rbDur;
+      const tTransEnd = tRbEnd + transDur;
+      const tRetroEnd = tTransEnd + retroDur;
+
+      if (S.t > tAvEnd && S.t <= tRbEnd) {
+        const prg = (S.t - tAvEnd) / rbDur;
+        pRB.setAttribute('cx', 225 - prg * 85);
+        pRB.setAttribute('cy', 185 + prg * 185);
+        pRB.setAttribute('r', '5');
+      } else { pRB.setAttribute('r', '0'); }
+
+      if (S.t > tRbEnd && S.t <= tTransEnd) {
+        const prg = (S.t - tRbEnd) / transDur;
+        pTrans.setAttribute('cx', 170 + prg * 125);
+        pTrans.setAttribute('cy', 320 + prg * 10);
+        pTrans.setAttribute('r', '5');
+      }
+
+      if (S.t > tTransEnd && S.t <= tRetroEnd) {
+        const prg = (S.t - tTransEnd) / retroDur;
+        pRetro.setAttribute('cx', 310 - prg * 65);
+        pRetro.setAttribute('cy', 370 - prg * 150);
+        pRetro.setAttribute('r', '5');
+      }
+
+    } else if (!cond.rbBlocked && !cond.lbBlocked) {
+      const rbDur = Math.max(40, cond.effectiveRbDelay * 1.1);
+      const lbDur = Math.max(40, cond.effectiveLbDelay * 1.1);
+
+      if (S.t > tAvEnd && S.t <= tAvEnd + rbDur) {
+        const prg = (S.t - tAvEnd) / rbDur;
+        pRB.setAttribute('cx', 225 - prg * 85);
+        pRB.setAttribute('cy', 185 + prg * 185);
+        pRB.setAttribute('r', '5');
+      } else { pRB.setAttribute('r', '0'); }
+
+      if (S.t > tAvEnd && S.t <= tAvEnd + lbDur) {
+        const prg = (S.t - tAvEnd) / lbDur;
+        pLB.setAttribute('cx', 225 + prg * 85);
+        pLB.setAttribute('cy', 185 + prg * 185);
+        pLB.setAttribute('r', '5');
+      } else { pLB.setAttribute('r', '0'); }
+    }
+  }
+}
+
+// DRAW ACTION POTENTIAL GRAPH WITH DYNAMIC PEELED REFRACTORY CURVE
+function drawActionPotentialGraph() {
+  const canvas = document.getElementById('apCanvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < w; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+  for (let y = 0; y < h; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+
+  ctx.fillStyle = '#94a3b8'; ctx.font = '10px ui-monospace, monospace';
+  ctx.fillText('+20 mV', 10, 45); ctx.fillText('0 mV', 18, 95); ctx.fillText('-40 mV', 10, 145);
+  ctx.fillText('-80 mV (Resting)', 10, 195); ctx.fillText('100% Na+ Availability', 10, 245); ctx.fillText('0% Na+', 10, 360);
+
+  let baseErp = S.apTab === 'av' ? S.avErp : (S.apTab === 'rb' ? S.rbErp : S.lbErp);
+  
+  // Compute baseline vs peeled ERP
+  let peelShift = 0;
+  if ((S.apTab === 'rb' || S.apTab === 'lb') && S.gapActive && S.s1s2 < 320) {
+    peelShift = Math.round((320 - S.s1s2) * 0.9);
+  }
+
+  let baseErpX = (baseErp / S.tcl) * (w - 80) + 60;
+  let peeledErpX = ((baseErp - peelShift) / S.tcl) * (w - 80) + 60;
+
+  // BASELINE REFRACTORY ZONE
+  ctx.fillStyle = '#ef444415'; ctx.fillRect(60, 20, Math.min(w - 70, baseErpX * 0.7), 340);
+  
+  // PEELED BACK SHIFT ZONE
+  if (peelShift > 0) {
+    ctx.fillStyle = '#c084fc30'; 
+    ctx.fillRect(peeledErpX * 0.7 + 60, 20, (baseErpX - peeledErpX) * 0.7, 340);
+    ctx.fillStyle = '#c084fc'; ctx.font = 'bold 11px sans-serif';
+    ctx.fillText(`🔮 Peeled Back Zone (-${peelShift}ms)`, peeledErpX * 0.7 + 65, 35);
+  } else {
+    ctx.fillStyle = '#ef444480'; ctx.font = 'bold 11px sans-serif'; ctx.fillText('Absolute Refractory (ARP)', 70, 35);
+  }
+
+  // ACTION POTENTIAL CURVE
+  ctx.beginPath(); ctx.lineWidth = 3; ctx.strokeStyle = S.apTab === 'av' ? '#fb923c' : (S.apTab === 'rb' ? '#38bdf8' : '#4ade80');
+  const startX = 60; const restY = 195; const peakY = 40;
+
+  if (S.apTab === 'av') {
+    ctx.moveTo(startX, restY); ctx.quadraticCurveTo(startX + 30, restY, startX + 50, peakY + 20);
+    ctx.quadraticCurveTo(startX + 120, peakY + 30, Math.min(w - 20, startX + baseErpX), restY); ctx.lineTo(w - 20, restY);
+  } else {
+    ctx.moveTo(startX, restY); ctx.lineTo(startX + 15, peakY); ctx.lineTo(startX + 30, peakY + 15);
+    ctx.lineTo(startX + 120, peakY + 20); ctx.quadraticCurveTo(startX + 180, peakY + 60, Math.min(w - 20, startX + (peelShift > 0 ? peeledErpX : baseErpX)), restY);
+    ctx.lineTo(w - 20, restY);
+  }
+  ctx.stroke();
+
+  // FAST NA+ CHANNEL AVAILABILITY CURVE (SHOWS PEEL SHIFT)
+  ctx.beginPath(); ctx.lineWidth = 2; ctx.strokeStyle = '#facc15'; ctx.setLineDash([4, 4]);
+  const na0Y = 360; const na100Y = 240;
+  const activeErpX = peelShift > 0 ? peeledErpX : baseErpX;
+  ctx.moveTo(startX, na0Y); ctx.lineTo(startX + activeErpX * 0.5, na0Y);
+  ctx.bezierCurveTo(startX + activeErpX * 0.8, na0Y, startX + activeErpX, na100Y, Math.min(w - 20, startX + activeErpX + 40), na100Y);
+  ctx.lineTo(w - 20, na100Y); ctx.stroke(); ctx.setLineDash([]);
+
+  const curX = (S.t / S.tcl) * (w - 80) + 60;
+  ctx.strokeStyle = S.inVF ? '#ef4444' : '#fff'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(curX, 20); ctx.lineTo(curX, 370); ctx.stroke();
+}
+
+// REAL-TIME DUAL LEAD ECG OSCILLOSCOPE (LEAD V1 ABOVE LEAD II)
+function updateLiveEcgOscilloscope(cond) {
+  const canvas = document.getElementById('liveEcgCanvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+
+  let sigLeadV1 = 0;
+  let sigLead2 = 0;
+  const t = S.t;
+
+  if (S.inVF) {
+    const now = Date.now() * 0.015;
+    sigLeadV1 = Math.sin(now) * 35 + Math.sin(now * 2.3) * 20 + (Math.random() - 0.5) * 12;
+    sigLead2 = -Math.sin(now * 1.2) * 40 + Math.cos(now * 2.8) * 25 + (Math.random() - 0.5) * 12;
+  } else if (S.pvcActive) {
+    const pvcStart = S.pvcCoupling;
+    if (t >= pvcStart && t <= pvcStart + 160) {
+      const rel = (t - pvcStart) / 160;
+      sigLeadV1 = Math.sin(rel * Math.PI) * 65;
+      sigLead2 = -Math.sin(rel * Math.PI) * 55;
+    }
+  } else {
+    // P Wave (S1 drive)
+    if (t >= 10 && t <= 70) {
+      sigLeadV1 = Math.sin((t - 10) / 60 * Math.PI) * 14;
+      sigLead2 = Math.sin((t - 10) / 60 * Math.PI) * 16;
+    }
+
+    // S2 Extra-Stimulus P Wave
+    if (S.gapActive && t >= S.s1s2 && t <= S.s1s2 + 60) {
+      sigLeadV1 = Math.sin((t - S.s1s2) / 60 * Math.PI) * 16;
+      sigLead2 = Math.sin((t - S.s1s2) / 60 * Math.PI) * 18;
+    }
+
+    // S3 Peeling Extra-Stimulus P Wave
+    if (S.gapActive && S.peelActive && t >= S.s1s2 + S.s2s3 && t <= S.s1s2 + S.s2s3 + 60) {
+      sigLeadV1 = Math.sin((t - (S.s1s2 + S.s2s3)) / 60 * Math.PI) * 18;
+      sigLead2 = Math.sin((t - (S.s1s2 + S.s2s3)) / 60 * Math.PI) * 20;
+    }
+
+    if (cond.ventriclesConducted) {
+      let qrsStart = 60 + cond.effectiveAvDelay;
+      if (cond.isS2Beat) qrsStart = S.s1s2 + cond.effectiveAvDelay;
+      if (cond.isS3Beat) qrsStart = S.s1s2 + S.s2s3 + cond.effectiveAvDelay;
+
+      const dur = cond.qrsDuration;
+      const rbD = cond.rbDegree;
+      const lbD = cond.lbDegree;
+
+      if (t >= qrsStart && t <= qrsStart + dur) {
+        const qt = t - qrsStart;
+        const rel = qt / dur;
+
+        // LEAD V1 MORPHOLOGY (TOP STRIP)
+        if (rbD > 0.1 && rbD >= lbD) {
+          const r1Peak = 14 + (1 - rbD) * 4;
+          const sDeep = -18 - (1 - rbD) * 30;
+          const r2Peak = rbD * 58;
+
+          if (rel < 0.2) sigLeadV1 = Math.sin(rel / 0.2 * Math.PI) * r1Peak;
+          else if (rel < 0.45) sigLeadV1 = sDeep * Math.sin((rel - 0.2) / 0.25 * Math.PI);
+          else if (rel < 0.9) sigLeadV1 = r2Peak * Math.sin((rel - 0.45) / 0.45 * Math.PI);
+        } else if (lbD > 0.1 && lbD > rbD) {
+          const r1Peak = 14 * (1 - lbD * 0.8);
+          const sDepth = -45 - lbD * 20;
+
+          if (rel < 0.15) sigLeadV1 = Math.sin(rel / 0.15 * Math.PI) * r1Peak;
+          else if (rel < 0.5) sigLeadV1 = sDepth * Math.sin((rel - 0.15) / 0.35 * Math.PI);
+          else if (rel < 0.65) sigLeadV1 = (sDepth + 20 * lbD) * Math.sin((rel - 0.5) / 0.15 * Math.PI);
+          else if (rel < 0.92) sigLeadV1 = (sDepth - 5 * lbD) * Math.sin((rel - 0.65) / 0.27 * Math.PI);
+        } else {
+          if (rel < 0.2) sigLeadV1 = Math.sin(rel / 0.2 * Math.PI) * 16;
+          else if (rel < 0.8) sigLeadV1 = -50 * Math.sin((rel - 0.2) / 0.6 * Math.PI);
+        }
+
+        // LEAD II MORPHOLOGY (BOTTOM STRIP)
+        if (lbD > 0.1 && lbD >= rbD) {
+          if (rel < 0.2) sigLead2 = Math.sin(rel / 0.2 * Math.PI) * 20;
+          else if (rel < 0.5) sigLead2 = Math.sin((rel - 0.2) / 0.3 * Math.PI) * 52;
+          else if (rel < 0.7) sigLead2 = 42 + Math.sin((rel - 0.5) / 0.2 * Math.PI) * 12;
+          else if (rel < 0.95) sigLead2 = (1 - (rel - 0.7) / 0.25) * 45;
+        } else if (rbD > 0.1 && rbD > lbD) {
+          if (rel < 0.3) sigLead2 = Math.sin(rel / 0.3 * Math.PI) * 50;
+          else if (rel < 0.8) sigLead2 = -Math.sin((rel - 0.3) / 0.5 * Math.PI) * (20 * rbD);
+        } else {
+          if (rel < 0.1) sigLead2 = -6;
+          else if (rel < 0.5) sigLead2 = Math.sin((rel - 0.1) / 0.4 * Math.PI) * 58;
+          else if (rel < 0.8) sigLead2 = -Math.sin((rel - 0.5) / 0.3 * Math.PI) * 12;
+        }
+      }
+
+      const tStart = qrsStart + dur + 20;
+      if (t >= tStart && t <= tStart + 130) {
+        const relT = (t - tStart) / 130;
+        if (rbD > 0.5) sigLeadV1 = -Math.sin(relT * Math.PI) * 22 * rbD;
+        else if (lbD > 0.5) sigLeadV1 = Math.sin(relT * Math.PI) * 22 * lbD;
+        else sigLeadV1 = Math.sin(relT * Math.PI) * 14;
+
+        if (lbD > 0.5) sigLead2 = -Math.sin(relT * Math.PI) * 16 * lbD;
+        else sigLead2 = Math.sin(relT * Math.PI) * 18;
+      }
+    }
+  }
+
+  S.ecgBufferLeadV1.shift(); S.ecgBufferLeadV1.push(sigLeadV1);
+  S.ecgBufferLead2.shift(); S.ecgBufferLead2.push(sigLead2);
+
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.strokeStyle = S.inVF ? '#450a0a' : '#1e293b'; ctx.lineWidth = 1;
+  for (let x = 0; x < w; x += 25) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+  for (let y = 0; y < h; y += 25) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+
+  const midYV1 = 50; const midY2 = 145;
+
+  ctx.strokeStyle = S.inVF ? '#7f1d1d' : '#334155';
+  ctx.beginPath(); ctx.moveTo(0, midYV1); ctx.lineTo(w, midYV1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, midY2); ctx.lineTo(w, midY2); ctx.stroke();
+
+  ctx.fillStyle = '#38bdf8'; ctx.font = 'bold 11px ui-monospace, monospace';
+  ctx.fillText('LEAD V1 (TOP STRIP)', 10, midYV1 - 25);
+  ctx.fillStyle = '#4ade80';
+  ctx.fillText('LEAD II (BOTTOM STRIP)', 10, midY2 - 25);
+
+  const stepX = w / S.ecgBufferLeadV1.length;
+
+  ctx.beginPath(); ctx.lineWidth = 2.0; ctx.strokeStyle = S.inVF ? '#ef4444' : '#38bdf8';
+  for (let i = 0; i < S.ecgBufferLeadV1.length; i++) {
+    const x = i * stepX; const y = midYV1 - S.ecgBufferLeadV1[i];
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  ctx.beginPath(); ctx.lineWidth = 2.0; ctx.strokeStyle = S.inVF ? '#f87171' : '#4ade80';
+  for (let i = 0; i < S.ecgBufferLead2.length; i++) {
+    const x = i * stepX; const y = midY2 - S.ecgBufferLead2[i];
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+}
+
+// STATIC ECG REFERENCE MATRIX CARDS
+function drawStaticScenarioECGs() {
+  const drawCardEcg = (canvasId, type) => {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width; const h = canvas.height;
+    const yV1 = 25; const y2 = 62;
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = '#1e293b';
+    for (let x = 0; x < w; x += 15) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+    for (let y = 0; y < h; y += 15) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+
+    ctx.fillStyle = '#94a3b8'; ctx.font = '9px monospace';
+    ctx.fillText('V1', 6, yV1 - 10); ctx.fillText('II', 6, y2 - 10);
+
+    ctx.beginPath(); ctx.lineWidth = 1.8; ctx.strokeStyle = '#38bdf8';
+    if (type === 'normal') {
+      ctx.moveTo(20, yV1); ctx.quadraticCurveTo(30, yV1 - 8, 40, yV1); ctx.lineTo(65, yV1);
+      ctx.lineTo(72, yV1 - 8); ctx.lineTo(85, yV1 + 22); ctx.lineTo(95, yV1); ctx.lineTo(270, yV1);
+    } else if (type === 'gap') {
+      ctx.moveTo(10, yV1); ctx.quadraticCurveTo(20, yV1 - 8, 30, yV1); ctx.lineTo(50, yV1);
+      ctx.lineTo(58, yV1 - 8); ctx.lineTo(70, yV1 + 22); ctx.lineTo(80, yV1); ctx.lineTo(130, yV1);
+      ctx.quadraticCurveTo(140, yV1 - 8, 150, yV1); ctx.lineTo(175, yV1);
+      ctx.lineTo(185, yV1 - 8); ctx.lineTo(198, yV1 + 22); ctx.lineTo(210, yV1); ctx.lineTo(270, yV1);
+    } else if (type === 'peel') {
+      ctx.moveTo(10, yV1); ctx.quadraticCurveTo(20, yV1 - 8, 30, yV1); ctx.lineTo(50, yV1);
+      ctx.lineTo(58, yV1 - 8); ctx.lineTo(70, yV1 + 22); ctx.lineTo(110, yV1);
+      ctx.quadraticCurveTo(120, yV1 - 8, 130, yV1); ctx.lineTo(160, yV1); // S2
+      ctx.quadraticCurveTo(170, yV1 - 8, 180, yV1); ctx.lineTo(195, yV1);
+      ctx.lineTo(205, yV1 - 8); ctx.lineTo(218, yV1 + 22); ctx.lineTo(230, yV1); ctx.lineTo(270, yV1); // Peeled S3 Conducts!
+    } else if (type === 'rbbb') {
+      ctx.moveTo(20, yV1); ctx.quadraticCurveTo(30, yV1 - 8, 40, yV1); ctx.lineTo(60, yV1);
+      ctx.lineTo(66, yV1 - 10); ctx.lineTo(74, yV1 + 10); ctx.lineTo(88, yV1 - 25); ctx.lineTo(100, yV1); ctx.lineTo(270, yV1);
+    } else if (type === 'lbbb') {
+      ctx.moveTo(20, yV1); ctx.quadraticCurveTo(30, yV1 - 8, 40, yV1); ctx.lineTo(60, yV1);
+      ctx.lineTo(65, yV1 - 4); ctx.lineTo(76, yV1 + 24); ctx.lineTo(82, yV1 + 14); ctx.lineTo(95, yV1 + 26); ctx.lineTo(108, yV1); ctx.lineTo(270, yV1);
+    } else if (type === 'bilateral') {
+      ctx.moveTo(20, yV1); ctx.quadraticCurveTo(30, yV1 - 8, 40, yV1); ctx.lineTo(120, yV1);
+      ctx.quadraticCurveTo(132, yV1 - 8, 142, yV1); ctx.lineTo(270, yV1);
+    }
+    ctx.stroke();
+
+    ctx.beginPath(); ctx.lineWidth = 1.8; ctx.strokeStyle = '#4ade80';
+    if (type === 'normal') {
+      ctx.moveTo(20, y2); ctx.quadraticCurveTo(30, y2 - 8, 40, y2); ctx.lineTo(65, y2);
+      ctx.lineTo(70, y2 + 4); ctx.lineTo(80, y2 - 25); ctx.lineTo(88, y2 + 8); ctx.lineTo(270, y2);
+    } else if (type === 'gap') {
+      ctx.moveTo(10, y2); ctx.quadraticCurveTo(20, y2 - 8, 30, y2); ctx.lineTo(50, y2);
+      ctx.lineTo(58, y2 + 4); ctx.lineTo(68, y2 - 25); ctx.lineTo(78, y2 + 8); ctx.lineTo(130, y2);
+      ctx.quadraticCurveTo(140, y2 - 8, 150, y2); ctx.lineTo(175, y2);
+      ctx.lineTo(185, y2 + 4); ctx.lineTo(198, y2 - 25); ctx.lineTo(208, y2 + 8); ctx.lineTo(270, y2);
+    } else if (type === 'peel') {
+      ctx.moveTo(10, y2); ctx.quadraticCurveTo(20, y2 - 8, 30, y2); ctx.lineTo(50, y2);
+      ctx.lineTo(58, y2 + 4); ctx.lineTo(68, y2 - 25); ctx.lineTo(110, y2);
+      ctx.quadraticCurveTo(120, y2 - 8, 130, y2); ctx.lineTo(160, y2);
+      ctx.quadraticCurveTo(170, y2 - 8, 180, y2); ctx.lineTo(195, y2);
+      ctx.lineTo(205, y2 + 4); ctx.lineTo(218, y2 - 25); ctx.lineTo(228, y2 + 8); ctx.lineTo(270, y2);
+    } else if (type === 'rbbb') {
+      ctx.moveTo(20, y2); ctx.quadraticCurveTo(30, y2 - 8, 40, y2); ctx.lineTo(65, y2);
+      ctx.lineTo(75, y2 - 25); ctx.lineTo(95, y2 + 15); ctx.lineTo(270, y2);
+    } else if (type === 'lbbb') {
+      ctx.moveTo(20, y2); ctx.quadraticCurveTo(30, y2 - 8, 40, y2); ctx.lineTo(60, y2);
+      ctx.lineTo(75, y2 - 22); ctx.lineTo(82, y2 - 14); ctx.lineTo(95, y2 - 25); ctx.lineTo(270, y2);
+    } else if (type === 'bilateral') {
+      ctx.moveTo(20, y2); ctx.quadraticCurveTo(30, y2 - 8, 40, y2); ctx.lineTo(130, y2);
+      ctx.quadraticCurveTo(145, y2 - 8, 155, y2); ctx.lineTo(270, y2);
+    }
+    ctx.stroke();
+  };
+
+  drawCardEcg('secg_normal', 'normal');
+  drawCardEcg('secg_gap', 'gap');
+  drawCardEcg('secg_peel', 'peel');
+  drawCardEcg('secg_rbbb', 'rbbb');
+  drawCardEcg('secg_lbbb', 'lbbb');
+  drawCardEcg('secg_bilateral', 'bilateral');
+}
+</script>
+</body>
+</html>
